@@ -26,7 +26,7 @@ Tarayıcıda `http://localhost:5173` adresini açın. (ES modülleri nedeniyle `
 npm test
 ```
 
-27 test (şartnamedeki 30 maddeyi kapsar). Node 20+ gerekir.
+30 test (şartnamedeki 30 maddeyi kapsar). Node 20+ gerekir.
 
 ## Kullanım akışı
 
@@ -36,7 +36,27 @@ npm test
 3. **En İyi Kadroyu Bul.** Önerilen ordu, savaş sonucu, ekonomik verimlilik, alternatif stratejiler ve Pareto listesi görünür.
 4. **Simülatör**: istediğiniz kadroyu elle deneyin; gerçek oyun sonucunu referans vaka olarak kaydedin.
 5. **Rainbow**: köy/vaha koordinatı, yolculuk süresi, saatlik kâr, kayıtlı vaha listesi.
-6. **Profil / Ayarlar**: asker sayıları, demirci, kahraman, kayıp sınırı (%50), kâr eşiği (%90), ağırlıklar, API anahtarı.
+6. **Profil / Ayarlar**: asker sayıları, demirci seviyeleri ve formülü, kahraman, kayıp sınırı (%50), kâr eşiği (%90),
+   güvenli yuvarlama uzaklığı, ağırlıklar, dil, tema, API anahtarı.
+
+Sağ üstteki düğmelerle dil (TR/EN) ve açık/koyu tema değiştirilir; seçimler cihazda saklanır.
+
+### Öneri türleri
+
+| Öneri | Kural |
+|---|---|
+| Dengeli | Kâr eşiğini sağlayan, en az ordu değeri bağlayan kadro |
+| **En güvenli** | Kâr eşiğini sağlayan kadrolar içinde, her asker/hayvan türünün kesirli kaybı 0,5 yuvarlama sınırından en az *güvenli uzaklık* (varsayılan 0,10) kadar uzak olan **en ucuz** ordu. Öyle bir kadro yoksa ulaşılabilen en iyi uzaklık dilimindeki en ucuz ordu seçilir ve bu açıkça belirtilir |
+| En yüksek net kâr / Minimum asker / Sıfır kayıp / En yüksek sermaye verimliliği / En düşük kahraman riski / En yüksek saatlik kâr | Adlarındaki ölçüt |
+
+Her sonuçta "yuvarlama sınırına uzaklık" (0 = tam sınırda, 0,5 = en uzak) gösterilir.
+
+### Demirci
+
+Profil sekmesinde her askerin demirci seviyesini (0–20) güncelleyin; yükseltilmiş saldırı değeri yanında gösterilir.
+Formül aynı yerden ayarlanabilir: varsayılan `taban + (taban + 300/7 × tüketim) × (1,007^seviye − 1)` (Kirilloid, T4),
+alternatif olarak seviye başına sabit yüzde; çarpan, katsayı ve yuvarlama (yok / en yakın / aşağı) değiştirilebilir.
+Resmî kaynak formül yayımlamadığı için oyundaki asker istatistik ekranıyla karşılaştırmanız önerilir.
 
 ## Mimari
 
@@ -49,6 +69,7 @@ npm test
 | `src/vision/` | `parse.js` (doğrulama, metin ayrıştırma), `claude.js` (yapay zekâ), `icons.js` (cihaz içi ikon + sayı tanıma) |
 | `src/data/references.js` | Gerçek oyun sonuçları (referans vakalar) |
 | `src/ui/` | Arayüz ve yerel kayıt |
+| `src/i18n.js` | Türkçe / İngilizce metin yardımcıları |
 
 Simülatör ve optimizasyon aynı `createScenario().evaluate()` fonksiyonunu kullanır; ikinci bir savaş hesabı yoktur.
 

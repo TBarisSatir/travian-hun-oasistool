@@ -29,11 +29,19 @@ export const DEFAULT_RULES = Object.freeze({
   borderMargin: 0.03,  // kesirli kayıp 0,5'e bu kadar yakınsa "sınırda" işaretlenir (birim cinsinden)
   heroDeathLossPct: 90,
   loneUnitMinAttack: 83, // tek başına saldıran, 83'ten az saldırı gücündeki birim her zaman ölür (resmî)
+  // Demirci formülü (ayarlanabilir). 't4': taban + (taban + katsayı·tüketim)·(çarpan^seviye − 1)  [Kirilloid]
+  //                                'percent': taban · (1 + yüzde/100)^seviye
+  smithyFormula: 't4', smithyBase: 1.007, smithyUpkeepCoef: 300 / 7, smithyPercent: 1.5,
+  smithyRound: 'none', // 'none' | 'round' | 'floor' — birim başına yükseltilmiş değerin yuvarlanması
+  safeMargin: 0.1,     // "en güvenli" seçenek: her kesirli kayıp 0,5 sınırından en az bu kadar uzak olmalı
 });
 
-export function upgradedStat(base, upkeep, level) {
+export function upgradedStat(base, upkeep, level, rules = DEFAULT_RULES) {
   if (!level) return base;
-  return base + (base + (300 * upkeep) / 7) * (Math.pow(1.007, level) - 1);
+  const v = rules.smithyFormula === 'percent'
+    ? base * Math.pow(1 + rules.smithyPercent / 100, level)
+    : base + (base + rules.smithyUpkeepCoef * upkeep) * (Math.pow(rules.smithyBase, level) - 1);
+  return rules.smithyRound === 'round' ? Math.round(v) : rules.smithyRound === 'floor' ? Math.floor(v) : v;
 }
 
 export function battleExponent(totalUnits, rules = DEFAULT_RULES) {
@@ -85,7 +93,7 @@ export function createScenario(config) {
     const u = HUN_UNITS[id];
     if (!u) throw new Error('Bilinmeyen birim: ' + id);
     const lvl = Math.min(20, Math.max(0, (config.smithy && config.smithy[id]) | 0));
-    uAttack[i] = upgradedStat(u.attack, u.upkeep, lvl) + (weapon.unit === id ? weapon.perUnit : 0);
+    uAttack[i] = upgradedStat(u.attack, u.upkeep, lvl, rules) + (weapon.unit === id ? weapon.perUnit : 0);
     uCav[i] = u.cavalry ? 1 : 0;
     uCost[i] = sum4w(u.cost, weights);
     uCostNominal[i] = u.cost[0] + u.cost[1] + u.cost[2] + u.cost[3];
@@ -120,7 +128,7 @@ export function createScenario(config) {
     valid: false, off: 0, def: 0, K: 1.5, attLoss: 0, defLoss: 0,
     lost: new Int32Array(n), exactLost: new Float64Array(n),
     killed: new Int32Array(m), exactKilled: new Float64Array(m),
-    borderline: false, borderAtt: false, borderDef: false,
+    borderline: false, borderAtt: false, borderDef: false, margin: 0.5,
     troops: 0, bountyNominal: 0, bounty: 0, loot: 0, lootNominal: 0, carry: 0,
     lossCost: 0, lossCostNominal: 0, gross: 0, net: 0, armyValue: 0,
     lossRatio: null, overallRatio: null, efficiency: null, perTroop: null,
@@ -152,7 +160,7 @@ export function createScenario(config) {
     out.off = off; out.def = def; out.K = K; out.attLoss = attLoss; out.defLoss = defLoss;
 
     const margin = rules.borderMargin;
-    let lossCost = 0, lossNom = 0, armyValue = 0, carry = 0, bAtt = false;
+    let lossCost = 0, lossNom = 0, armyValue = 0, carry = 0, bAtt = false, minDist = 0.5;
     for (let i = 0; i < n; i++) {
       const c = counts[i];
       if (!(c > 0)) { out.lost[i] = 0; out.exactLost[i] = 0; continue; }
@@ -160,7 +168,7 @@ export function createScenario(config) {
       const l = roundLoss(exact, c, rules.attackerTie);
       out.lost[i] = l; out.exactLost[i] = exact;
       const frac = exact - Math.floor(exact);
-      if (Math.abs(frac - 0.5) < margin && exact < c - 1e-9) bAtt = true;
+      if (exact < c - 1e-9) { const dd = Math.abs(frac - 0.5); if (dd < minDist) minDist = dd; if (dd < margin) bAtt = true; }
       lossCost += l * uCost[i]; lossNom += l * uCostNominal[i];
       armyValue += c * uCost[i]; carry += (c - l) * uCarry[i];
     }
@@ -170,10 +178,10 @@ export function createScenario(config) {
       const k = roundLoss(exact, aCount[j], rules.defenderTie);
       out.killed[j] = k; out.exactKilled[j] = exact;
       const frac = exact - Math.floor(exact);
-      if (Math.abs(frac - 0.5) < margin && exact < aCount[j] - 1e-9) bDef = true;
+      if (exact < aCount[j] - 1e-9) { const dd = Math.abs(frac - 0.5); if (dd < minDist) minDist = dd; if (dd < margin) bDef = true; }
       killedUpkeep += k * aUpkeep[j];
     }
-    out.borderAtt = bAtt; out.borderDef = bDef; out.borderline = bAtt || bDef;
+    out.borderAtt = bAtt; out.borderDef = bDef; out.borderline = bAtt || bDef; out.margin = minDist;
 
     // Kahraman (model tahmini)
     let heroDead = false;
@@ -210,11 +218,11 @@ export function createScenario(config) {
   function report(counts) {
     const r = evaluate(counts);
     const units = unitIds.map((id, i) => ({
-      id, tr: HUN_UNITS[id].tr, sent: counts[i] | 0, lost: r.valid ? r.lost[i] : 0,
+      id, tr: HUN_UNITS[id].tr, en: HUN_UNITS[id].en, sent: counts[i] | 0, lost: r.valid ? r.lost[i] : 0,
       exactLost: r.valid ? r.exactLost[i] : 0, attackEach: uAttack[i], costEach: uCostNominal[i],
     })).filter((u) => u.sent > 0);
     const animals = aIds.map((id, j) => ({
-      id, tr: ANIMALS[id].tr, icon: ANIMALS[id].icon, count: aCount[j], killed: r.valid ? r.killed[j] : 0,
+      id, tr: ANIMALS[id].tr, en: ANIMALS[id].en, icon: ANIMALS[id].icon, count: aCount[j], killed: r.valid ? r.killed[j] : 0,
       exactKilled: r.valid ? r.exactKilled[j] : 0, upkeep: aUpkeep[j],
     }));
     const copy = {};

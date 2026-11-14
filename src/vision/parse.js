@@ -1,6 +1,7 @@
 // Görüntü tanıma çıktılarının doğrulanması ve metinden (OCR / yapıştırılan metin) hayvan ayrıştırma.
 // Bu modül ağ kullanmaz ve savaş motorundan bağımsızdır.
 import { ANIMALS, ANIMAL_IDS } from '../data/nature.js';
+import { L } from '../i18n.js';
 
 const fold = (s) => String(s).toLowerCase()
   .replace(/ı/g, 'i').replace(/İ/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g')
@@ -44,12 +45,12 @@ export function parseAnimalText(text) {
     if (!id) continue;
     const nums = (line.replace(/(\d)[.\s](?=\d{3}\b)/g, '$1').match(/\d+/g) || []).map(Number);
     if (nums.length !== 1) {
-      warnings.push(`"${line}": ${ANIMALS[id].tr} için sayı ${nums.length ? 'belirsiz' : 'okunamadı'}.`);
-      if (!found.has(id)) found.set(id, { id, count: nums.length ? nums[0] : 0, confidence: 'low', note: 'Sayıyı kontrol edin' });
+      warnings.push(L(`"${line}": ${ANIMALS[id].tr} için sayı ${nums.length ? 'belirsiz' : 'okunamadı'}.`, `"${line}": count for ${ANIMALS[id].en} is ${nums.length ? 'ambiguous' : 'unreadable'}.`));
+      if (!found.has(id)) found.set(id, { id, count: nums.length ? nums[0] : 0, confidence: 'low', note: L('Sayıyı kontrol edin', 'Check the count') });
       continue;
     }
     if (found.has(id)) {
-      warnings.push(`${ANIMALS[id].tr} birden fazla kez okundu; ilk değer korundu.`);
+      warnings.push(L(`${ANIMALS[id].tr} birden fazla kez okundu; ilk değer korundu.`, `${ANIMALS[id].en} was read more than once; the first value was kept.`));
       found.get(id).confidence = 'low';
       continue;
     }
@@ -67,19 +68,19 @@ export function normalizeRecognition(raw, warningsIn = []) {
   const out = [];
   const seen = new Set();
   const list = raw && Array.isArray(raw.animals) ? raw.animals : [];
-  if (!raw || !Array.isArray(raw.animals)) warnings.push('Tanıma sonucu beklenen biçimde değil.');
+  if (!raw || !Array.isArray(raw.animals)) warnings.push(L('Tanıma sonucu beklenen biçimde değil.', 'The recognition result is not in the expected format.'));
   for (const item of list) {
     if (!item) continue;
     let id = ANIMAL_IDS.includes(item.id) ? item.id : matchAnimalName(item.id || item.name || '');
-    if (!id) { warnings.push(`Bilinmeyen birim yok sayıldı: "${item.id || item.name || '?'}"`); continue; }
-    if (seen.has(id)) { warnings.push(`${ANIMALS[id].tr} tekrarlandı; ilk değer korundu.`); continue; }
+    if (!id) { warnings.push(L('Bilinmeyen birim yok sayıldı: ', 'Unknown unit ignored: ') + `"${item.id || item.name || '?'}"`); continue; }
+    if (seen.has(id)) { warnings.push(L(`${ANIMALS[id].tr} tekrarlandı; ilk değer korundu.`, `${ANIMALS[id].en} was repeated; the first value was kept.`)); continue; }
     seen.add(id);
     let count = Number(item.count);
     let confidence = item.confidence === 'high' ? 'high' : 'low';
     let note = item.note ? String(item.note).slice(0, 120) : '';
     if (!Number.isInteger(count) || count < 0 || count > 100000) {
-      warnings.push(`${ANIMALS[id].tr}: sayı geçersiz, elle girin.`);
-      count = 0; confidence = 'low'; note = note || 'Sayı okunamadı';
+      warnings.push(L(`${ANIMALS[id].tr}: sayı geçersiz, elle girin.`, `${ANIMALS[id].en}: invalid count, enter it manually.`));
+      count = 0; confidence = 'low'; note = note || L('Sayı okunamadı', 'Count unreadable');
     }
     out.push({ id, count, confidence, note });
   }

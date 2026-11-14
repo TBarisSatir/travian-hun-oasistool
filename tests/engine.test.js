@@ -1,10 +1,11 @@
 // Zorunlu doğrulama testleri (şartname §22). Numaralar şartnamedeki sırayı izler.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { simulate, createScenario, roundLoss, upgradedStat, battleExponent } from '../src/engine/battle.js';
+import { simulate, createScenario, roundLoss, upgradedStat, battleExponent, DEFAULT_RULES } from '../src/engine/battle.js';
+import { L, nameOf, setLang } from '../src/i18n.js';
 import { optimize, compareHeroModes, clampLimits } from '../src/optimizer/optimizer.js';
-import { OPT_UNIT_IDS, ALL_HUN_IDS, HUN_UNITS } from '../src/data/units.js';
-import { ANIMALS, ANIMAL_IDS } from '../src/data/nature.js';
+import { OPT_UNIT_IDS, ALL_HUN_IDS, HUN_UNITS, HUN_WEAPONS } from '../src/data/units.js';
+import { ANIMALS, ANIMAL_IDS, OASIS_TYPES } from '../src/data/nature.js';
 import { distance, tripHours } from '../src/engine/travel.js';
 import { parseAnimalText, normalizeRecognition, parseCoords, normalizeHero } from '../src/vision/parse.js';
 import { REFERENCE_CASES, checkReference } from '../src/data/references.js';
@@ -376,4 +377,71 @@ test('28b. İkon tanıma: kümeleme, parmak izi eşleştirme, bonus → vaha tü
   assert.deepEqual(parseTitleCoords('Boş vaha (149|152)'), { x: 149, y: 152 });
   assert.deepEqual(parseTitleCoords('(-12|7)'), { x: -12, y: 7 });
   assert.equal(parseTitleCoords('(149152)'), null, 'ayraç okunmadıysa koordinat tahmin edilmez');
+});
+
+test('Ek: en güvenli seçenek — yuvarlama sınırına uzak, kâr eşiğini sağlayan en ucuz ordu (brute-force ile aynı)', () => {
+  for (const [animals, max] of [[OASIS, [20, 20, 20]], [{ boar: 2, wolf: 1, bear: 1 }, [14, 10, 9]], [OASIS, [15, 10, 10]]]) {
+    const o = optimize(cfg(animals), max);
+    const s = o.picks.safest;
+    assert.ok(s, 'en güvenli seçenek var');
+    const rows = [];
+    for (let a = 0; a <= max[0]; a++) for (let b = 0; b <= max[1]; b++) for (let c = 0; c <= max[2]; c++) {
+      if (a + b + c === 0) continue;
+      const r = simulate(cfg(animals), { steppeRider: a, marksman: b, marauder: c });
+      if (r.lossCost > 0 && !(r.lossRatio < 50)) continue;
+      if (!(r.net > 0) || r.net < o.threshold - 1e-9) continue;
+      rows.push({ margin: r.margin, armyValue: r.armyValue, net: r.net });
+    }
+    const SM = DEFAULT_RULES.safeMargin;
+    const safe = rows.filter((r) => r.margin >= SM);
+    if (safe.length) {
+      assert.equal(s.meetsSafeMargin, true); assert.ok(s.margin >= SM);
+      assert.equal(s.armyValue, Math.min(...safe.map((r) => r.armyValue)));
+    } else {
+      assert.equal(s.meetsSafeMargin, false);
+      const tier = Math.floor(Math.max(...rows.map((r) => r.margin)) * 100 + 1e-9) / 100;
+      assert.equal(s.targetMargin, tier); assert.ok(s.margin >= tier - 1e-12);
+      assert.equal(s.armyValue, Math.min(...rows.filter((r) => r.margin >= tier - 1e-12).map((r) => r.armyValue)));
+    }
+    assert.ok(s.net >= o.threshold - 1e-9);
+    // Rapordaki uzaklık, optimizasyonun bildirdiğiyle aynı
+    const rep = simulate(cfg(animals), { steppeRider: s.counts[0], marksman: s.counts[1], marauder: s.counts[2] });
+    assert.ok(Math.abs(rep.margin - s.margin) < 1e-12);
+  }
+  // Uzaklık ölçüsü: 10/2/2 → Bozkır kaybı 1,49994 (sınırın dibinde), 1/1/1 vs 410 → tam sınırda
+  assert.ok(sim(OASIS, 10, 2, 2).margin < 0.001); assert.equal(sim({ rat: 20 }, 1, 1, 1).margin, 0);
+  // Güvenli uzaklık ayarı sonucu değiştirir
+  const strict = optimize(cfg(OASIS, { rules: { safeMargin: 0.45 } }), [20, 20, 20]).picks.safest;
+  const loose = optimize(cfg(OASIS, { rules: { safeMargin: 0.05 } }), [20, 20, 20]).picks.safest;
+  assert.ok(loose.armyValue <= strict.armyValue);
+});
+
+test('Ek: demirci formülü yapılandırılabilir', () => {
+  const R = (x) => ({ ...DEFAULT_RULES, ...x });
+  assert.ok(Math.abs(upgradedStat(120, 2, 5) - (120 + (120 + 600 / 7) * (Math.pow(1.007, 5) - 1))) < 1e-12);
+  assert.equal(upgradedStat(120, 2, 5, R({ smithyRound: 'round' })), 127);
+  assert.equal(upgradedStat(120, 2, 5, R({ smithyRound: 'floor' })), 127);
+  assert.ok(Math.abs(upgradedStat(100, 2, 10, R({ smithyFormula: 'percent', smithyPercent: 1.5 })) - 100 * Math.pow(1.015, 10)) < 1e-12);
+  assert.ok(Math.abs(upgradedStat(120, 2, 5, R({ smithyBase: 1.01, smithyUpkeepCoef: 0 })) - 120 * Math.pow(1.01, 5)) < 1e-12);
+  // Senaryo, kendisine verilen kuralları kullanır; seviye 0'da formül etkisizdir
+  const a = sim(OASIS, 10, 0, 0, { smithy: { steppeRider: 5 }, rules: { smithyRound: 'round' } });
+  assert.equal(a.off, 1270);
+  const b = sim(OASIS, 10, 0, 0, { smithy: { steppeRider: 5 }, rules: { smithyFormula: 'percent', smithyPercent: 2 } });
+  assert.ok(Math.abs(b.off - 1200 * Math.pow(1.02, 5)) < 1e-9);
+  assert.equal(sim(OASIS, 10, 2, 2, { rules: { smithyFormula: 'percent', smithyPercent: 9 } }).off, 1780);
+});
+
+test('Ek: iki dil — veri adları ve iletiler', () => {
+  for (const id of ANIMAL_IDS) { assert.ok(ANIMALS[id].tr && ANIMALS[id].en, id); }
+  for (const id of ALL_HUN_IDS) { assert.ok(HUN_UNITS[id].tr && HUN_UNITS[id].en, id); }
+  for (const w of Object.values(HUN_WEAPONS)) assert.ok(w.tr && w.en, w.id);
+  for (const o of Object.values(OASIS_TYPES)) assert.ok(o.tr && o.en, o.id);
+  assert.equal(HUN_WEAPONS.step2.unit, 'steppeRider'); assert.equal(HUN_WEAPONS.step2.perUnit, 8); assert.equal(HUN_WEAPONS.mara3.strength, 4000);
+  setLang('en');
+  try {
+    assert.equal(L('a', 'b'), 'b'); assert.equal(nameOf(ANIMALS.rat), 'Rat'); assert.equal(nameOf(HUN_UNITS.marauder), 'Marauder');
+    assert.match(normalizeRecognition({ animals: [{ id: 'dragon', count: 1 }] }).warnings[0], /Unknown unit/);
+    assert.match(checkReference({ mode: 'raid', units: { steppeRider: 10, marksman: 2, marauder: 2 }, animals: OASIS, expected: { lost: { steppeRider: 5 } } }).mismatches[0], /engine 1, game 5/);
+  } finally { setLang('tr'); }
+  assert.equal(nameOf(ANIMALS.rat), 'Sıçan');
 });

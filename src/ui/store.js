@@ -12,7 +12,10 @@ export const DEFAULT_STATE = () => ({
   prefs: {
     lossFilterOn: true, maxLossRatio: 50, requireProfit: true, profitThresholdPct: 90, minHeroHealth: 30,
     weights: [1, 1, 1, 1], pickMode: 'balanced', extraCost: 0, heroMode: 'none', attackMode: 'raid',
+    // Ayarlanabilir motor kuralları (demirci formülü, "en güvenli" seçenek için yuvarlama uzaklığı)
+    rules: { smithyFormula: 't4', smithyBase: 1.007, smithyUpkeepCoef: 300 / 7, smithyPercent: 1.5, smithyRound: 'none', safeMargin: 0.1 },
   },
+  ui: { lang: 'tr', theme: '' }, // theme: '' = sistem, 'light', 'dark'
   oasis: { animals: {}, conf: {}, coords: { x: '', y: '' }, type: '', stock: [0, 0, 0, 0], lootablePct: 100, hours: 0 },
   sim: { units: {}, mode: 'raid' },
   oases: [],     // çoklu vaha planlaması için kayıtlı vahalar

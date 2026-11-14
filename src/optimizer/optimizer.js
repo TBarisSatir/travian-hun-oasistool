@@ -55,6 +55,13 @@ export function optimize(config, max, prefsIn = {}, onProgress) {
   const stats = { evaluated: 0, feasible: 0, byLoss: 0, byProfit: 0, byHero: 0 };
   const counts = [0, 0, 0];
   const t0 = Date.now();
+  const rejectReason = (r) => {
+    if (hasHero && (r.heroDead || r.heroAfter < prefs.minHeroHealth)) return 'hero';
+    if (prefs.maxLossRatio != null && r.lossCost > 0 &&
+      !((r.lossRatio != null ? r.lossRatio : r.overallRatio != null ? r.overallRatio : Infinity) < prefs.maxLossRatio)) return 'loss';
+    if (prefs.requireProfit && !(r.net > 0)) return 'profit';
+    return null;
+  };
 
   for (let a = 0; a <= lim[0]; a++) {
     counts[0] = a;
@@ -65,11 +72,7 @@ export function optimize(config, max, prefsIn = {}, onProgress) {
         const r = sc.evaluate(counts);
         if (!r.valid) continue;
         stats.evaluated++;
-        let reason = null;
-        if (hasHero && (r.heroDead || r.heroAfter < prefs.minHeroHealth)) reason = 'hero';
-        else if (prefs.maxLossRatio != null && r.lossCost > 0 &&
-          !((r.lossRatio != null ? r.lossRatio : r.overallRatio != null ? r.overallRatio : Infinity) < prefs.maxLossRatio)) reason = 'loss';
-        else if (prefs.requireProfit && !(r.net > 0)) reason = 'profit';
+        const reason = rejectReason(r);
         if (reason) {
           stats[reason === 'hero' ? 'byHero' : reason === 'loss' ? 'byLoss' : 'byProfit']++;
           if (rejectedBest.length < 5 || r.net > rejectedBest[rejectedBest.length - 1].net) {
@@ -121,16 +124,46 @@ export function optimize(config, max, prefsIn = {}, onProgress) {
     picks.maxEfficiency = pick(withArmy, (x, y) => y[NET] / y[AV] - x[NET] / x[AV] || y[NET] - x[NET]);
     if (hasHero) picks.lowHeroRisk = pick(good, (x, y) => x[HD] - y[HD] || x[AV] - y[AV] || y[NET] - x[NET]);
     if (sc.hasTravel) picks.maxPerHour = pick(all, (x, y) => y[PH] - x[PH] || x[AV] - y[AV]);
-    // Sınırda olmayan (yuvarlama eşiğinden uzak) daha güvenli dengeli alternatif
-    if (picks.balanced && picks.balanced[BD]) picks.saferBalanced = pick(good.filter((c) => !c[BD]), byAV);
     // Denge analizi: kârın ≥%75'i, en kârlı ordunun ≤%20'si kadar askerle
     const small = all.filter((c) => c[NET] >= maxNet * 0.75 && c[TR] <= maxProfitC[TR] * 0.2 && c[TR] < maxProfitC[TR]);
     if (small.length) picks.smallArmy = pick(small, (x, y) => y[NET] - x[NET] || x[TR] - y[TR]);
   }
 
+  // EN GÜVENLİ SEÇENEK (ikinci tam tarama). Baskınlık elemesi "sınıra uzaklık" ölçütünü taşımadığı için ayrı taranır.
+  // Kural: kâr eşiğini sağlayan adaylar içinde, bütün kesirli kayıpları 0,5 yuvarlama sınırından en az
+  // safeMargin uzakta olan EN UCUZ ordu. Hiçbir aday o kadar uzak değilse hedef, ulaşılabilen en iyi
+  // uzaklığın 0,01'lik dilimine indirilir ve yine o dilimdeki en ucuz ordu seçilir. (Yalnızca "en uzak"
+  // olanı seçmek, kesirleri sıfıra yaklaştırdığı için gereksiz büyük orduları öne çıkarırdı.)
+  let safest = null;
+  if (maxProfitC) {
+    const safeMargin = sc.rules.safeMargin;
+    const cheaper = (av, net, tr, s) => !s || av < s.armyValue || (av === s.armyValue && (net > s.net || (net === s.net && tr < s.troops)));
+    const snap = (r, c) => ({ counts: c.slice(), net: r.net, armyValue: r.armyValue, lossCost: r.lossCost, perHour: r.perHour == null ? 0 : r.perHour, heroDamage: r.heroDamage, borderline: r.borderline, troops: r.troops, margin: r.margin });
+    let safeBest = null;
+    const tiers = new Array(51).fill(null); // tiers[k]: uzaklığı ≥ k/100 olan en ucuz aday
+    for (let a = 0; a <= lim[0]; a++) {
+      counts[0] = a;
+      for (let b = 0; b <= lim[1]; b++) {
+        counts[1] = b;
+        for (let c = 0; c <= lim[2]; c++) {
+          counts[2] = c;
+          const r = sc.evaluate(counts);
+          if (!r.valid || r.net < threshold - 1e-9 || rejectReason(r)) continue;
+          if (r.margin >= safeMargin) { if (cheaper(r.armyValue, r.net, r.troops, safeBest)) safeBest = snap(r, counts); continue; }
+          if (safeBest) continue; // güvenli aday bulunduysa yedek dilimlere gerek yok
+          const top = Math.floor(r.margin * 100 + 1e-9);
+          for (let k = top; k >= 0; k--) { if (cheaper(r.armyValue, r.net, r.troops, tiers[k])) tiers[k] = snap(r, counts); else if (tiers[k] && tiers[k].armyValue < r.armyValue) break; }
+        }
+      }
+    }
+    if (safeBest) safest = { ...safeBest, meetsSafeMargin: true, targetMargin: safeMargin };
+    else { for (let k = 50; k >= 0; k--) if (tiers[k]) { safest = { ...tiers[k], meetsSafeMargin: false, targetMargin: k / 100 }; break; } }
+  }
+
   const toObj = (c) => c && { counts: [c[0], c[1], c[2]], net: c[NET], armyValue: c[AV], lossCost: c[LC], perHour: c[PH], heroDamage: c[HD], borderline: !!c[BD], troops: c[TR] };
   const outPicks = {};
   for (const k of Object.keys(picks)) if (picks[k]) outPicks[k] = toObj(picks[k]);
+  if (safest) outPicks.safest = safest;
 
   return {
     exhaustive: !limited,

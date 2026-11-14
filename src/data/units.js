@@ -22,22 +22,22 @@ export const OPT_UNIT_IDS = ['steppeRider', 'marksman', 'marauder'];
 
 // Hun kahramanı sağ el silahları — resmî kaynak: support.travian.com/en/articles/97
 // strength: kahraman savaş gücü bonusu; perUnit: ilgili askerin birim başına saldırı (ve savunma) bonusu.
-function w(id, tr, unit, strength, perUnit) { return { id, tr, unit, strength, perUnit }; }
+function w(id, tr, en, unit, strength, perUnit) { return { id, tr, en, unit, strength, perUnit }; }
 export const HUN_WEAPONS = {
-  none: { id: 'none', tr: 'Silah yok / diğer', unit: null, strength: 0, perUnit: 0 },
-  merc1: w('merc1', 'Paralı Asker Baltası (küçük)', 'mercenary', 250, 3),
-  merc2: w('merc2', 'Paralı Asker Baltası', 'mercenary', 1000, 4),
-  merc3: w('merc3', 'Paralı Asker Savaş Baltası', 'mercenary', 4000, 5),
-  bow1: w('bow1', 'Okçunun Kısa Yayı', 'bowman', 250, 3),
-  bow2: w('bow2', 'Okçunun Yayı', 'bowman', 1000, 4),
-  bow3: w('bow3', 'Okçunun Uzun Yayı', 'bowman', 4000, 5),
-  step1: w('step1', 'Bozkır Atlısının Kısa Kılıcı', 'steppeRider', 250, 6),
-  step2: w('step2', 'Bozkır Atlısının Kılıcı', 'steppeRider', 1000, 8),
-  step3: w('step3', 'Bozkır Atlısının Uzun Kılıcı', 'steppeRider', 4000, 10),
-  mark1: w('mark1', 'Nişancının Kısa Yayı', 'marksman', 250, 6),
-  mark2: w('mark2', 'Nişancının Yayı', 'marksman', 1000, 8),
-  mark3: w('mark3', 'Nişancının Uzun Yayı', 'marksman', 4000, 10),
-  mara1: w('mara1', 'Yağmacının Kısa Kılıcı', 'marauder', 250, 9),
-  mara2: w('mara2', 'Yağmacının Kılıcı', 'marauder', 1000, 12),
-  mara3: w('mara3', 'Yağmacının Uzun Kılıcı', 'marauder', 4000, 15),
+  none: { id: 'none', tr: 'Silah yok / diğer', en: 'No weapon / other', unit: null, strength: 0, perUnit: 0 },
+  merc1: w('merc1', 'Paralı Asker Baltası (küçük)', 'Hatchet of the Mercenary', 'mercenary', 250, 3),
+  merc2: w('merc2', 'Paralı Asker Baltası', 'Axe of the Mercenary', 'mercenary', 1000, 4),
+  merc3: w('merc3', 'Paralı Asker Savaş Baltası', 'Battle Axe of the Mercenary', 'mercenary', 4000, 5),
+  bow1: w('bow1', 'Okçunun Kısa Yayı', 'Short bow of the Bowman', 'bowman', 250, 3),
+  bow2: w('bow2', 'Okçunun Yayı', 'Bow of the Bowman', 'bowman', 1000, 4),
+  bow3: w('bow3', 'Okçunun Uzun Yayı', 'Longbow of the Bowman', 'bowman', 4000, 5),
+  step1: w('step1', 'Bozkır Atlısının Kısa Kılıcı', 'Short sword of the Steppe Rider', 'steppeRider', 250, 6),
+  step2: w('step2', 'Bozkır Atlısının Kılıcı', 'Sword of the Steppe Rider', 'steppeRider', 1000, 8),
+  step3: w('step3', 'Bozkır Atlısının Uzun Kılıcı', 'Long sword of the Steppe Rider', 'steppeRider', 4000, 10),
+  mark1: w('mark1', 'Nişancının Kısa Yayı', 'Short bow of the Marksman', 'marksman', 250, 6),
+  mark2: w('mark2', 'Nişancının Yayı', 'Bow of the Marksman', 'marksman', 1000, 8),
+  mark3: w('mark3', 'Nişancının Uzun Yayı', 'Longbow of the Marksman', 'marksman', 4000, 10),
+  mara1: w('mara1', 'Yağmacının Kısa Kılıcı', 'Short sword of the Marauder', 'marauder', 250, 9),
+  mara2: w('mara2', 'Yağmacının Kılıcı', 'Sword of the Marauder', 'marauder', 1000, 12),
+  mara3: w('mara3', 'Yağmacının Uzun Kılıcı', 'Long sword of the Marauder', 'marauder', 4000, 15),
 };

@@ -11,6 +11,7 @@
 // parseTitleCoords) tarayıcı gerektirmez ve testlerde doğrudan çalıştırılır.
 import { ANIMAL_IDS } from '../data/nature.js';
 import { SEED_ICON_TEMPLATES } from '../data/icon-templates.js';
+import { L } from '../i18n.js';
 
 export const DESC_SIZE = 12;
 export const MATCH_MAX = 22;     // ortalama kanal farkı bu değerin altındaysa eşleşme kabul edilir
@@ -101,7 +102,7 @@ export function loadTesseract() {
     const s = document.createElement('script');
     s.src = TESSERACT_URL;
     s.onload = () => resolve(globalThis.Tesseract);
-    s.onerror = () => { loading = null; reject(new Error('Tanıma kitaplığı indirilemedi (ilk kullanımda internet gerekli).')); };
+    s.onerror = () => { loading = null; reject(new Error(L('Tanıma kitaplığı indirilemedi (ilk kullanımda internet gerekli).', 'Could not download the recognition library (internet is needed on first use).'))); };
     document.head.appendChild(s);
   });
   return loading;
@@ -228,9 +229,9 @@ export async function recognizeIconScreenshot(img, learnedTemplates, onProgress)
       const ok = /^\d{1,5}$/.test(num.text) && num.conf >= 60;
       const count = /^\d{1,5}$/.test(num.text) ? parseInt(num.text, 10) : 0;
       const notes = [];
-      if (!cls.id) notes.push('İkon tanınmadı — hayvanı seçin');
-      else if (cls.confidence === 'low') notes.push('İkon eşleşmesi zayıf');
-      if (!ok) notes.push(num.text ? 'Sayı emin değil' : 'Sayı okunamadı');
+      if (!cls.id) notes.push(L('İkon tanınmadı — hayvanı seçin', 'Icon not recognised — pick the animal'));
+      else if (cls.confidence === 'low') notes.push(L('İkon eşleşmesi zayıf', 'Weak icon match'));
+      if (!ok) notes.push(num.text ? L('Sayı emin değil', 'Count uncertain') : L('Sayı okunamadı', 'Count unreadable'));
       out.rows.push({
         id: cls.id, count, confidence: cls.id && cls.confidence === 'high' && ok ? 'high' : 'low', note: notes.join('; '),
         box: [c.x0, c.x1, c.top, c.bottom], digits: num.text, digitConf: Math.round(num.conf), distance: Math.round(cls.distance),
@@ -266,7 +267,7 @@ export async function recognizeIconScreenshot(img, learnedTemplates, onProgress)
         out.titleRaw = r.text;
       }
     }
-    if (!out.rows.length) warnings.push('"Askerler" satırında hayvan bulunamadı (vaha boş olabilir).');
+    if (!out.rows.length) warnings.push(L('"Askerler" satırında hayvan bulunamadı (vaha boş olabilir).', 'No animals found in the "Troops" row (the oasis may be empty).'));
     return out;
   } finally { await worker.terminate(); }
 }

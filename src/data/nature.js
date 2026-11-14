@@ -25,16 +25,16 @@ export const BOUNTY_PER_UPKEEP_PER_RESOURCE = 40;
 // Depo kapasitesinin hızla ölçeklenip ölçeklenmediği kaynakta belirtilmiyor → belirsiz.
 // typical: yaygın hayvanlar (yalnızca ipucu; savaş hesabına ASLA girmez).
 export const OASIS_TYPES = {
-  iron25:      { id: 'iron25',      tr: 'Demir %25',               prod: [10, 10, 40, 11], cap: 1000, typical: ['rat', 'spider', 'bat'] },
-  iron25crop:  { id: 'iron25crop',  tr: 'Demir %25 + Tahıl %25',   prod: [10, 10, 40, 41], cap: 2000, typical: ['rat', 'spider', 'bat'] },
-  iron50:      { id: 'iron50',      tr: 'Demir %50 (gri bölge)',   prod: [10, 10, 80, 11], cap: 2000, typical: ['rat', 'spider', 'bat'] },
-  clay25:      { id: 'clay25',      tr: 'Kil %25',                 prod: [10, 40, 10, 11], cap: 1000, typical: ['rat', 'spider', 'boar'] },
-  clay25crop:  { id: 'clay25crop',  tr: 'Kil %25 + Tahıl %25',     prod: [10, 40, 10, 41], cap: 2000, typical: ['rat', 'spider', 'boar'] },
-  clay50:      { id: 'clay50',      tr: 'Kil %50 (gri bölge)',     prod: [10, 80, 10, 11], cap: 2000, typical: ['rat', 'spider', 'boar'] },
-  wood25:      { id: 'wood25',      tr: 'Odun %25',                prod: [40, 10, 10, 11], cap: 1000, typical: ['boar', 'wolf', 'bear'] },
-  wood25crop:  { id: 'wood25crop',  tr: 'Odun %25 + Tahıl %25',    prod: [40, 10, 10, 41], cap: 2000, typical: ['boar', 'wolf', 'bear'] },
-  wood50:      { id: 'wood50',      tr: 'Odun %50 (gri bölge)',    prod: [80, 10, 10, 11], cap: 2000, typical: ['boar', 'wolf', 'bear'] },
-  crop25:      { id: 'crop25',      tr: 'Tahıl %25',               prod: [10, 10, 10, 41], cap: 1000, typical: ['rat', 'snake', 'bear', 'crocodile', 'tiger'] },
-  crop50:      { id: 'crop50',      tr: 'Tahıl %50',               prod: [10, 10, 10, 81], cap: 2000, typical: ['rat', 'snake', 'bear', 'crocodile', 'tiger'] },
+  iron25:      { id: 'iron25',      tr: 'Demir %25', en: 'Iron 25%',               prod: [10, 10, 40, 11], cap: 1000, typical: ['rat', 'spider', 'bat'] },
+  iron25crop:  { id: 'iron25crop',  tr: 'Demir %25 + Tahıl %25', en: 'Iron 25% + Crop 25%',   prod: [10, 10, 40, 41], cap: 2000, typical: ['rat', 'spider', 'bat'] },
+  iron50:      { id: 'iron50',      tr: 'Demir %50 (gri bölge)', en: 'Iron 50% (grey zone)',   prod: [10, 10, 80, 11], cap: 2000, typical: ['rat', 'spider', 'bat'] },
+  clay25:      { id: 'clay25',      tr: 'Kil %25', en: 'Clay 25%',                 prod: [10, 40, 10, 11], cap: 1000, typical: ['rat', 'spider', 'boar'] },
+  clay25crop:  { id: 'clay25crop',  tr: 'Kil %25 + Tahıl %25', en: 'Clay 25% + Crop 25%',     prod: [10, 40, 10, 41], cap: 2000, typical: ['rat', 'spider', 'boar'] },
+  clay50:      { id: 'clay50',      tr: 'Kil %50 (gri bölge)', en: 'Clay 50% (grey zone)',     prod: [10, 80, 10, 11], cap: 2000, typical: ['rat', 'spider', 'boar'] },
+  wood25:      { id: 'wood25',      tr: 'Odun %25', en: 'Wood 25%',                prod: [40, 10, 10, 11], cap: 1000, typical: ['boar', 'wolf', 'bear'] },
+  wood25crop:  { id: 'wood25crop',  tr: 'Odun %25 + Tahıl %25', en: 'Wood 25% + Crop 25%',    prod: [40, 10, 10, 41], cap: 2000, typical: ['boar', 'wolf', 'bear'] },
+  wood50:      { id: 'wood50',      tr: 'Odun %50 (gri bölge)', en: 'Wood 50% (grey zone)',    prod: [80, 10, 10, 11], cap: 2000, typical: ['boar', 'wolf', 'bear'] },
+  crop25:      { id: 'crop25',      tr: 'Tahıl %25', en: 'Crop 25%',               prod: [10, 10, 10, 41], cap: 1000, typical: ['rat', 'snake', 'bear', 'crocodile', 'tiger'] },
+  crop50:      { id: 'crop50',      tr: 'Tahıl %50', en: 'Crop 50%',               prod: [10, 10, 10, 81], cap: 2000, typical: ['rat', 'snake', 'bear', 'crocodile', 'tiger'] },
 };
 export const OASIS_TYPE_IDS = Object.keys(OASIS_TYPES);
