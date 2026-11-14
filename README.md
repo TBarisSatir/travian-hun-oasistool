@@ -26,7 +26,7 @@ Tarayıcıda `http://localhost:5173` adresini açın. (ES modülleri nedeniyle `
 npm test
 ```
 
-26 test (şartnamedeki 30 maddeyi kapsar). Node 20+ gerekir.
+27 test (şartnamedeki 30 maddeyi kapsar). Node 20+ gerekir.
 
 ## Kullanım akışı
 
@@ -46,7 +46,7 @@ npm test
 | `src/engine/battle.js` | **Tek savaş motoru** (saldırı, savunma, kayıp, yuvarlama, kahraman, ekonomi) |
 | `src/engine/travel.js` | Mesafe, yolculuk süresi, vaha stok tahmini |
 | `src/optimizer/optimizer.js` | Eksiksiz tarama + baskınlık elemesi + Pareto; `worker.js` Web Worker sarmalayıcısı |
-| `src/vision/` | `parse.js` (doğrulama, metin ayrıştırma), `claude.js` (yapay zekâ), `ocr.js` (cihaz içi OCR) |
+| `src/vision/` | `parse.js` (doğrulama, metin ayrıştırma), `claude.js` (yapay zekâ), `icons.js` (cihaz içi ikon + sayı tanıma) |
 | `src/data/references.js` | Gerçek oyun sonuçları (referans vakalar) |
 | `src/ui/` | Arayüz ve yerel kayıt |
 
@@ -79,16 +79,21 @@ Arayüzde her sonuç **Doğrulanmış / Matematiksel tahmin / Dikkat–sınırda
 
 - **Yapay zekâ (isteğe bağlı, haricî servis):** görüntü, sizin API anahtarınızla doğrudan tarayıcıdan Anthropic API'sine gönderilir.
   Açık izin ve anahtar gerekir (Ayarlar). Anahtar yalnızca cihazda saklanır ve dışa aktarıma dahil edilmez.
-- **Cihazda OCR (deneysel):** görüntü cihazdan çıkmaz; Tesseract.js ve dil verisi ilk kullanımda jsDelivr'den indirilir.
-  Yalnızca yazıyla görünen hayvan adlarını okur, ikon tanımaz. Sonuçlar her zaman "kontrol et" olarak işaretlenir.
+- **Cihazda tanı (ikon + sayı):** görüntü cihazdan çıkmaz; Tesseract.js ve dil verisi ilk kullanımda jsDelivr'den indirilir.
+  Mobil vaha penceresindeki "Askerler" satırını bulur, her ikonu renk parmak iziyle eşleştirir, sayıyı rakam OCR'ı ile okur;
+  koordinatı ve bonus satırından vaha türünü de çıkarır. Fil dışındaki dokuz hayvan yerleşik tanınır;
+  fil (ve tanınmayan her ikon) ilk karşılaşmada bir kez seçilir ve cihazda öğrenilir. Tanınmayan ikon asla tahmin edilmez.
+  "Askerler" satırı yoksa (ör. masaüstü düzeni) yazıyla görünen hayvan adlarını okumaya düşer.
 - **Elle giriş / metin yapıştırma:** her zaman, internet olmadan çalışır.
 
 Tanıma çıktısı her durumda doğrulanır: bilinmeyen hayvan eklenmez, okunamayan sayı sıfırlanıp işaretlenir.
 
 ## Bilinen sınırlar
 
-- Yapay zekâ tanıma gerçek bir API anahtarıyla, OCR ise gerçek Travian ekran görüntüleriyle bu depoda test edilmedi
-  (OCR yalnızca sentetik bir görüntüyle denendi). İlk kullanımda sayıları mutlaka kontrol edin.
+- Yapay zekâ tanıma gerçek bir API anahtarıyla test edilmedi. Cihazda tanı beş gerçek mobil ekran görüntüsüyle
+  (hepsi aynı telefon, 924×2000) doğrulandı: 18 hayvan satırı, 5 koordinat ve 5 vaha türü doğru okundu.
+  Farklı çözünürlük, tema veya dilde ikon eşleşmesi tutmayabilir — o durumda ikon
+  "tanınmadı" olarak gelir ve seçmeniz istenir. Sayıları her zaman görüntüyle karşılaştırın.
 - Kahraman can kaybı doğrulanmamıştır; kahramanlı öneriler her zaman "Dikkat" olarak işaretlenir.
 - Arama uzayı 6 milyon kombinasyonu aşarsa sınırlar küçültülür ve sonuç "sınırlı arama" olarak belirtilir.
 

@@ -89,3 +89,8 @@ table.form input { min-width: 76px; }
 .toast { position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; background: #222; color: #fff; padding: 12px 14px; border-radius: 10px; font-size: .9rem; z-index: 20; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
 @media (max-width: 420px) { .fields.four { grid-template-columns: repeat(2, 1fr); } .animals { grid-template-columns: repeat(2, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+.iconrows { margin: 8px 0; }
+.iconrow { display: grid; grid-template-columns: 96px 1fr 84px; gap: 8px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; }
+.iconrow.low { border-color: var(--accent); }
+.iconrow img { max-width: 96px; max-height: 48px; border-radius: 6px; background: #efe3cc; }
+.iconrow small { grid-column: 1 / -1; }

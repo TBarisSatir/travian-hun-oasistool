@@ -1,11 +1,11 @@
 // Service worker: uygulama kabuğunu önbelleğe alır → internet olmadan elle giriş, simülasyon ve
 // optimizasyon çalışır. Strateji: önce ağ (güncel sürüm), ağ yoksa önbellek.
-const CACHE = 'hun-oasis-v1';
+const CACHE = 'hun-oasis-v2';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
   'src/ui/app.js', 'src/ui/store.js', 'src/data/units.js', 'src/data/nature.js', 'src/data/references.js',
   'src/engine/battle.js', 'src/engine/travel.js', 'src/optimizer/optimizer.js', 'src/optimizer/worker.js',
-  'src/vision/parse.js', 'src/vision/claude.js', 'src/vision/ocr.js',
+  'src/vision/parse.js', 'src/vision/claude.js', 'src/vision/icons.js', 'src/data/icon-templates.js',
 ];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {

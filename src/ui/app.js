@@ -7,11 +7,11 @@ import { distance, tripHours, formatHours, estimateOasisStock } from '../engine/
 import { compareHeroModes } from '../optimizer/optimizer.js';
 import { parseAnimalText, parseCoords } from '../vision/parse.js';
 import { recognizeWithClaude, VISION_MODELS } from '../vision/claude.js';
-import { recognizeWithOcr } from '../vision/ocr.js';
+import { recognizeIconScreenshot, decodeDescriptor, descriptorDistance } from '../vision/icons.js';
 import { loadState, saveState, importState, DEFAULT_STATE } from './store.js';
 
 let S = loadState();
-const T = { tab: 'oasis', result: null, simReport: null, busy: false, progress: 0, image: null, visionMsg: null, visionBusy: false, lastReport: null, heroImage: null, toast: null };
+const T = { tab: 'oasis', result: null, simReport: null, busy: false, progress: 0, image: null, iconRows: null, visionMsg: null, visionBusy: false, lastReport: null, heroImage: null, toast: null };
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nf = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
@@ -153,6 +153,30 @@ function animalGrid() {
       ${c ? `<small class="conf ${c.confidence}">${c.confidence === 'high' ? 'okundu' : '⚠ kontrol et'}${c.note ? ' — ' + esc(c.note) : ''}</small>` : ''}
     </div>`; }).join('')}</div>`;
 }
+function iconRowsEditor() {
+  if (!T.iconRows || !T.iconRows.length) return '';
+  return `<div class="iconrows"><p class="muted">Görüntüden kesilen ikonlar. Yanlış veya tanınmamış olanı düzeltin; seçiminiz bu cihazda öğrenilir ve sonraki görüntülerde otomatik tanınır.</p>${T.iconRows.map((r, i) => `<div class="iconrow ${r.id && r.confidence === 'high' ? '' : 'low'}">
+    <img src="${r.thumb}" alt="Görüntüden kesilen ikon ${i + 1}">
+    <select data-iconrow-sel="${i}" aria-label="İkon ${i + 1} hayvan türü"><option value="">— hayvanı seçin —</option>${ANIMAL_IDS.map((id) => `<option value="${id}" ${r.id === id ? 'selected' : ''}>${ANIMALS[id].icon} ${ANIMALS[id].tr}</option>`).join('')}</select>
+    <input type="number" inputmode="numeric" min="0" value="${r.count}" data-iconrow-count="${i}" aria-label="İkon ${i + 1} adedi">
+    ${r.note ? `<small class="conf low">⚠ ${esc(r.note)}</small>` : '<small class="conf high">tanındı</small>'}</div>`).join('')}</div>`;
+}
+function applyIconRows() {
+  S.oasis.animals = {}; S.oasis.conf = {};
+  for (const r of T.iconRows) {
+    if (!r.id) continue;
+    S.oasis.animals[r.id] = int(S.oasis.animals[r.id]) + int(r.count);
+    S.oasis.conf[r.id] = { confidence: r.confidence, note: r.note };
+  }
+  T.result = null;
+}
+function learnIcon(row) {
+  // Aynı ikon daha önce başka bir hayvan olarak öğrenildiyse (yanlış seçim düzeltmesi) o kayıt silinir.
+  for (const k of Object.keys(S.iconTemplates)) S.iconTemplates[k] = S.iconTemplates[k].filter((t) => t !== row.descriptor);
+  const list = (S.iconTemplates[row.id] ??= []);
+  const d = decodeDescriptor(row.descriptor);
+  if (!list.some((t) => descriptorDistance(decodeDescriptor(t), d) < 4)) { list.push(row.descriptor); if (list.length > 8) list.shift(); }
+}
 function oasisDefense() {
   const an = ANIMAL_IDS.reduce((s, id) => s + int(S.oasis.animals[id]) * ANIMALS[id].defCav, 0);
   const up = ANIMAL_IDS.reduce((s, id) => s + int(S.oasis.animals[id]) * ANIMALS[id].upkeep, 0);
@@ -166,11 +190,12 @@ function tabOasis() {
     <div class="row">
       <label class="btn file">📷 Görüntü seç<input type="file" accept="image/*" id="img-oasis" hidden></label>
       <button class="btn" data-act="vision-ai" ${T.image && !T.visionBusy ? '' : 'disabled'}>Yapay zekâ ile tanı</button>
-      <button class="btn ghost" data-act="vision-ocr" ${T.image && !T.visionBusy ? '' : 'disabled'}>Cihazda OCR <small>(deneysel)</small></button>
+      <button class="btn ghost" data-act="vision-ocr" ${T.image && !T.visionBusy ? '' : 'disabled'}>Cihazda tanı <small>(ikon + sayı)</small></button>
     </div>
     ${T.image ? `<img class="thumb" src="${T.image.url}" alt="Yüklenen vaha görüntüsü">` : '<p class="muted">Vahaya tıklayınca açılan, hayvanların listelendiği pencerenin görüntüsünü yükleyin. Tanıma olmadan da aşağıdan elle girebilirsiniz.</p>'}
     ${T.visionBusy ? '<p class="muted">Tanınıyor…</p>' : ''}
     ${v ? `<div class="note ${v.cls}">${v.html}</div>` : ''}
+    ${iconRowsEditor()}
     <details><summary>Metinden oku (yapıştır)</summary>
       <textarea id="paste-text" rows="3" placeholder="Örn.&#10;3 Sıçan&#10;1 Örümcek&#10;9 Yarasa"></textarea>
       <button class="btn ghost" data-act="parse-text">Metni uygula</button></details>
@@ -529,16 +554,33 @@ async function visionAI(kind) {
   T.visionBusy = false; render();
 }
 async function visionOcr() {
-  T.visionBusy = true; render();
-  try { applyRecognition(await recognizeWithOcr(T.image.img), 'Cihazda OCR'); }
-  catch (e) { T.visionMsg = { cls: 'bad', html: esc(String(e.message || e)) + ' Elle giriş her zaman kullanılabilir.' }; }
+  T.visionBusy = true; T.iconRows = null; render();
+  try {
+    const out = await recognizeIconScreenshot(T.image.img, S.iconTemplates);
+    if (out.layout) {
+      T.iconRows = out.rows;
+      if (out.coords) S.oasis.coords = { x: out.coords.x, y: out.coords.y };
+      if (out.oasisType && OASIS_TYPES[out.oasisType]) S.oasis.type = out.oasisType;
+      if (out.rows.length) applyIconRows();
+      const unknown = out.rows.filter((r) => !r.id).length, unsure = out.rows.filter((r) => r.id && r.confidence !== 'high').length;
+      const known = out.rows.filter((r) => r.id).map((r) => `<b>${r.count}</b> ${ANIMALS[r.id].tr}`).join(', ');
+      T.visionMsg = { cls: !out.rows.length ? 'bad' : unknown || unsure ? 'warn' : 'ok', html: !out.rows.length ? 'Cihazda tanı: "Askerler" satırında hayvan bulunamadı (vaha boş olabilir). Elle girebilirsiniz.'
+        : `Cihazda tanı: ${out.rows.length} ikon bulundu${known ? ' — ' + known : ''}.${out.coords ? ` Koordinat (${out.coords.x}|${out.coords.y}).` : ''}${out.oasisType ? ' Tür: ' + OASIS_TYPES[out.oasisType].tr + '.' : ''}${unknown ? ` <b>${unknown} ikon tanınmadı</b> — aşağıdan bir kez seçin, cihaz öğrenecek.` : ''}${unsure ? ` <b>${unsure} değer emin değil</b> — kontrol edin.` : ''} Sayıları görüntüyle karşılaştırın.` };
+      persist();
+    } else {
+      const txt = parseAnimalText(out.rawText); txt.coords = out.coords || parseCoords(out.rawText);
+      txt.animals.forEach((x) => { x.confidence = 'low'; x.note = x.note || 'OCR — sayıyı kontrol edin'; });
+      if (txt.empty) txt.warnings.push('Bu ekran düzeni tanınmadı ("Askerler" satırı veya hayvan adları bulunamadı). Yapay zekâ tanımayı deneyin veya elle girin.');
+      applyRecognition(txt, 'Cihazda tanı (metin)');
+    }
+  } catch (e) { T.visionMsg = { cls: 'bad', html: esc(String(e.message || e)) + ' Elle giriş her zaman kullanılabilir.' }; }
   T.visionBusy = false; render();
 }
 
 const ACTIONS = {
   inc: (id) => { S.oasis.animals[id] = int(S.oasis.animals[id]) + 1; delete S.oasis.conf[id]; T.result = null; },
   dec: (id) => { S.oasis.animals[id] = Math.max(0, int(S.oasis.animals[id]) - 1); delete S.oasis.conf[id]; T.result = null; },
-  'clear-animals': () => { S.oasis.animals = {}; S.oasis.conf = {}; T.result = null; T.visionMsg = null; },
+  'clear-animals': () => { S.oasis.animals = {}; S.oasis.conf = {}; T.result = null; T.visionMsg = null; T.iconRows = null; },
   'hero-mode': (id) => { S.prefs.heroMode = id; T.result = null; T.simReport = null; },
   'attack-mode': (id) => { S.prefs.attackMode = id; T.result = null; },
   'sim-mode': (id) => { S.sim.mode = id; T.simReport = null; },
@@ -586,9 +628,15 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', async (e) => {
   const el = e.target;
-  if (el.id === 'img-oasis' && el.files[0]) { try { T.image = await loadImage(el.files[0]); T.visionMsg = null; } catch (err) { toast(err.message); } render(); return; }
+  if (el.id === 'img-oasis' && el.files[0]) { try { T.image = await loadImage(el.files[0]); T.visionMsg = null; T.iconRows = null; } catch (err) { toast(err.message); } render(); return; }
   if (el.id === 'img-hero' && el.files[0]) { try { T.heroImage = await loadImage(el.files[0]); await visionAI('hero'); } catch (err) { toast(err.message); } return; }
   if (el.id === 'import-file' && el.files[0]) { try { const key = S.vision.apiKey; S = importState(await el.files[0].text()); if (!S.vision.apiKey) S.vision.apiKey = key; persist(); toast('İçe aktarıldı.'); } catch { toast('Dosya okunamadı: geçerli bir dışa aktarım değil.'); } render(); return; }
+  if (el.dataset.iconrowSel != null || el.dataset.iconrowCount != null) {
+    const r = T.iconRows[+(el.dataset.iconrowSel ?? el.dataset.iconrowCount)];
+    if (el.dataset.iconrowSel != null) { r.id = el.value || null; if (r.id) learnIcon(r); } else r.count = int(el.value);
+    r.confidence = r.id ? 'high' : 'low'; r.note = r.id ? '' : 'İkon tanınmadı — hayvanı seçin';
+    applyIconRows(); persist(); render(); return;
+  }
   if (el.dataset.animal) { S.oasis.animals[el.dataset.animal] = int(el.value); delete S.oasis.conf[el.dataset.animal]; T.result = null; persist(); render(); return; }
   if (el.dataset.bind) {
     const v = el.type === 'checkbox' ? el.checked : el.dataset.raw != null || el.tagName === 'SELECT' ? el.value : el.value === '' ? 0 : num(el.value);

@@ -8,6 +8,8 @@ import { ANIMALS, ANIMAL_IDS } from '../src/data/nature.js';
 import { distance, tripHours } from '../src/engine/travel.js';
 import { parseAnimalText, normalizeRecognition, parseCoords, normalizeHero } from '../src/vision/parse.js';
 import { REFERENCE_CASES, checkReference } from '../src/data/references.js';
+import { descriptorDistance, segmentColumns, classifyIcon, mergeTemplates, decodeDescriptor, encodeDescriptor, bonusToOasisType, parseBonusPercent, parseTitleCoords } from '../src/vision/icons.js';
+import { SEED_ICON_TEMPLATES } from '../src/data/icon-templates.js';
 
 const OASIS = { rat: 3, spider: 1, bat: 9 };
 const cfg = (animals, extra = {}) => ({ unitIds: OPT_UNIT_IDS, smithy: {}, hero: null, animals, mode: 'raid', ...extra });
@@ -335,4 +337,43 @@ test('Ek: performans — 150×150×150 eksiksiz tarama birkaç saniyenin altınd
   const o = optimize(cfg({ boar: 3, wolf: 2, bear: 1 }), [150, 150, 150]);
   assert.equal(o.exhaustive, true); assert.ok(o.ms < 15000, 'süre: ' + o.ms + ' ms');
   assert.ok(o.picks.balanced);
+});
+
+test('28b. İkon tanıma: kümeleme, parmak izi eşleştirme, bonus → vaha türü, koordinat', () => {
+  // Gerçek ekran görüntüsündeki (149|152) sütun profili: 4 [ikon+hap] kümesi
+  const cols = new Array(924).fill(0);
+  for (const [a, b] of [[101, 233], [260, 393], [420, 553], [580, 712]]) for (let x = a; x <= b; x++) cols[x] = 5;
+  cols[150] = 0; cols[151] = 0; // küme içi küçük boşluk bölmemeli
+  assert.deepEqual(segmentColumns(cols, 5, 10), [[101, 233], [260, 393], [420, 553], [580, 712]]);
+  assert.deepEqual(segmentColumns([0, 1, 1, 0, 0, 0, 0, 1], 3, 2), [[1, 2]], 'dar kümeler atılır');
+  const tpl = mergeTemplates({});
+  assert.deepEqual(Object.keys(SEED_ICON_TEMPLATES).sort(), ['bat', 'bear', 'boar', 'crocodile', 'rat', 'snake', 'spider', 'tiger', 'wolf']);
+  for (const id of Object.keys(SEED_ICON_TEMPLATES)) {
+    const d = decodeDescriptor(SEED_ICON_TEMPLATES[id][0]);
+    assert.equal(d.length, 432);
+    assert.deepEqual(classifyIcon(d, tpl).id, id);
+    assert.equal(classifyIcon(d, tpl).confidence, 'high');
+    // Hafif gürültü (farklı sıkıştırma/ölçek) eşleşmeyi bozmamalı
+    const noisy = d.map((v, i) => Math.max(0, Math.min(255, v + ((i * 7) % 13) - 6)));
+    assert.equal(classifyIcon(noisy, tpl).id, id);
+    assert.equal(encodeDescriptor(d), SEED_ICON_TEMPLATES[id][0]);
+  }
+  // Bilinmeyen ikon uydurulmaz
+  assert.equal(classifyIcon(new Uint8Array(432).fill(128), tpl).id, null);
+  assert.equal(classifyIcon(new Uint8Array(432).fill(128), {}).id, null);
+  // Cihazda öğrenilen şablon kullanılır
+  const custom = new Uint8Array(432).map((_, i) => (i * 37) % 251);
+  assert.equal(classifyIcon(custom, mergeTemplates({ elephant: [encodeDescriptor(custom)] })).id, 'elephant');
+  // Yerleşik parmak izleri birbirinden yeterince uzak (yanlış eşleşme payı)
+  const ids = Object.keys(SEED_ICON_TEMPLATES);
+  for (const a of ids) for (const b of ids) if (a < b) assert.ok(descriptorDistance(decodeDescriptor(SEED_ICON_TEMPLATES[a][0]), decodeDescriptor(SEED_ICON_TEMPLATES[b][0])) > 35, a + '/' + b);
+  assert.equal(bonusToOasisType([0, 25, 0, 0]), 'clay25'); assert.equal(bonusToOasisType([25, 0, 0, 25]), 'wood25crop');
+  assert.equal(bonusToOasisType([0, 0, 50, 0]), 'iron50'); assert.equal(bonusToOasisType([0, 0, 0, 50]), 'crop50');
+  assert.equal(bonusToOasisType([0, 0, 0, 25]), 'crop25'); assert.equal(bonusToOasisType([25, 25, 0, 0]), null);
+  assert.equal(bonusToOasisType([0, NaN, 0, 0]), null); assert.equal(bonusToOasisType([0, 0, 0, 0]), null);
+  assert.equal(parseBonusPercent('%25'), 25); assert.equal(parseBonusPercent('%0'), 0); assert.equal(parseBonusPercent('40'), 0);
+  assert.equal(parseBonusPercent('9625'), 25); assert.ok(Number.isNaN(parseBonusPercent('%7'))); assert.ok(Number.isNaN(parseBonusPercent('')));
+  assert.deepEqual(parseTitleCoords('Boş vaha (149|152)'), { x: 149, y: 152 });
+  assert.deepEqual(parseTitleCoords('(-12|7)'), { x: -12, y: 7 });
+  assert.equal(parseTitleCoords('(149152)'), null, 'ayraç okunmadıysa koordinat tahmin edilmez');
 });

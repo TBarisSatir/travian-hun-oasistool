@@ -18,6 +18,7 @@ export const DEFAULT_STATE = () => ({
   oases: [],     // çoklu vaha planlaması için kayıtlı vahalar
   history: [],   // geçmiş optimizasyon/simülasyon özetleri
   refs: [],      // kullanıcının eklediği referans vakalar (gerçek oyun sonuçları)
+  iconTemplates: {}, // cihazda öğrenilen ikon parmak izleri { hayvan: [base64] }
   vision: { apiKey: '', model: 'claude-opus-5-5', consent: false },
 });
 
